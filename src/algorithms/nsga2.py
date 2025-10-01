@@ -41,21 +41,21 @@ class NSGA2:
             combined = population + offspring
 
             fronts = fast_non_dominated_sort(combined)
-        for front in fronts:
-            self.calculate_crowding_distance(front)
+            for front in fronts:  
+                self.calculate_crowding_distance(front)
 
-        population = self.select_next_generation(fronts)
+            population = self.select_next_generation(fronts)  
 
-        if (gen + 1) % 50 == 0:
-            print(f"Generation {gen + 1}/{self.generations} - Front 1 size: {len(fronts[0])}")
+            if (gen + 1) % 50 == 0:
+                print(f"Generation {gen + 1}/{self.generations} - Front 1 size: {len(fronts[0])}")
 
-            final_fronts = fast_non_dominated_sort(population)
+        final_fronts = fast_non_dominated_sort(population) 
         if final_fronts and len(final_fronts[0]) > 0:
             print(f"\nFinal Pareto front size: {len(final_fronts[0])}")
             return final_fronts[0]
         else:
-            print("\n Warning: No Pareto front found!")
-        return []   #return an empty list instead of None
+            print("\nWarning: No Pareto front found!")
+            return [] #return an empty list instead of None
 
     
     def initialize_population(self):
