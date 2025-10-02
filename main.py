@@ -51,8 +51,8 @@ def main():
                 pop_size=args.pop_size,
                 generations=args.generations,
                 crossover_prob=args.crossover_prob,
-                mutation_prob=args.mutation_prob
-                seed=args.seed,
+                mutation_prob=args.mutation_prob,
+                seed=args.seed
             )
         elif args.algorithm.lower() == 'spea2':
             algorithm = SPEA2(
