@@ -24,6 +24,8 @@ def main():
                        help='Crossover probability')
     parser.add_argument('--mutation-prob', type=float, default=0.2, 
                        help='Mutation probability')
+    parser.add_argument('--seed', type=int, default=None,
+                       help='Random seed (for reproducibility)')
     
     args = parser.parse_args()
     
@@ -50,6 +52,7 @@ def main():
                 generations=args.generations,
                 crossover_prob=args.crossover_prob,
                 mutation_prob=args.mutation_prob
+                seed=args.seed,
             )
         elif args.algorithm.lower() == 'spea2':
             algorithm = SPEA2(

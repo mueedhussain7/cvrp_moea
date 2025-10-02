@@ -123,9 +123,12 @@ class NSGA2:
             parent1_tour = routes_to_tour(parent1.routes)
             parent2_tour = routes_to_tour(parent2.routes)
 
-            child_tour = ox_crossover(parent1_tour, parent2_tour)
-            child_tour = mutate_swap(child_tour, getattr(self, "mutation_prob", 0.2))
+            if random.random() < self.crossover_prob:
+                child_tour = ox_crossover(parent1_tour, parent2_tour)
+            else:
+                child_tour = parent1_tour[:] # Clone parent1
 
+            child_tour = mutate_swap(child_tour, self.mutation_prob)
             child_routes = tour_to_routes(child_tour, self.instance)
 
             child = CVRPSolution(child_routes, self.instance)

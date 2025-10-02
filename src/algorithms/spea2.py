@@ -157,11 +157,11 @@ class SPEA2:
     
     def _environmental_selection(self, union, fitness, size):
         # Select all non-dominated solutions (Fitness < 1)
-        selected = {solution for solution in union if fitness[solution] < 1.0}
+        selected = [solution for solution in union if fitness[solution] < 1.0]
 
         # Fill with best fitness solutions if needed
         if len(selected) < size:
-            rest = sorted(solution for solution in union if solution not in selected)
+            rest = [solution for solution in union if solution not in selected]
             rest.sort(key=attrgetter('fitness', 'total_distance', 'route_balance'))
             need = size - len(selected)
             selected.extend(rest[:need])
@@ -195,6 +195,40 @@ class SPEA2:
                 if min_dist < best_dist:
                     best_dist = min_dist
                     rm_idx = i
-            selected.remove(list(selected)[rm_idx])
-            
-        return list(selected)
+            del selected[rm_idx]
+
+        return selected
+    
+    def _mating_and_variation(self, archive):
+        offspring = []
+        while len(offspring) < self.pop_size:
+            parent1 = self._pick(archive)
+            parent2 = self._pick(archive)
+
+            # Crossover 
+            t1 = routes_to_tour(parent1.routes)
+            t2 = routes_to_tour(parent2.routes)
+
+
+            if random.random() < self.crossover_prob:
+                child_tour = ox_crossover(t1, t2)
+            else:
+                child_tour = t1[:] # Clone parent1
+
+            # Mutation
+            child_tour = mutate_swap(child_tour, self.mutation_prob)
+            child_routes = tour_to_routes(child_tour, self.instance)
+            offspring.append(CVRPSolution(child_routes, self.instance))
+        return offspring
+
+    def _pick(self, archive):
+        if len(archive) == 1:
+            return archive[0]
+        a, b = random.sample(archive, 2)
+        if dominates(a, b): return a
+        if dominates(b, a): return b
+        if getattr(a, 'fitness', None) is not None and getattr(b, 'fitness', None) is not None and a.fitness != b.fitness:
+            return a if a.fitness < b.fitness else b
+        return a if (a.total_distance + a.route_balance) < (b.total_distance + b.route_balance) else b
+    
+    
