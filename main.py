@@ -6,6 +6,7 @@ import time
 from src.problem.cvrp_reader import read_cvrp_file
 from src.algorithms.nsga2 import NSGA2
 from src.algorithms.spea2 import SPEA2
+from src.problem.solution import CVRPSolution
 
 
 def main():
@@ -43,6 +44,7 @@ def main():
         print(f"Run {run + 1}/{args.runs}")
         print(f"{'='*60}")
         
+        CVRPSolution.EVAL_COUNTER = 0 # Reset evaluation counter each run
         start_time = time.time()
         
         if args.algorithm == 'nsga2':
@@ -70,6 +72,7 @@ def main():
         elapsed = time.time() - start_time
         
         all_fronts.append(pareto_front)
+        evals = CVRPSolution.EVAL_COUNTER
         
         print(f"\nRun completed in {elapsed:.2f} seconds")
         print(f"Pareto front size: {len(pareto_front)}")
@@ -89,7 +92,7 @@ def main():
     print(f"Instance: {instance.name}")
     print(f"Runs completed: {len(all_fronts)}")
     print(f"Average Pareto front size: {sum(len(f) for f in all_fronts) / len(all_fronts):.1f}")
-
+    print(f"Total evaluations across all runs: {sum(CVRPSolution.EVAL_COUNTER for _ in all_fronts)}")
 
 if __name__ == '__main__':
     main()

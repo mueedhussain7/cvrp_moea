@@ -8,6 +8,8 @@ class CVRPSolution:
     A solution is a set of routes, where each route is a list of customer IDs
     starting and ending at the depot (represented as 0)
     """
+
+    EVAL_COUNTER = 0 # Global evaluation counter for MOEAs
     
     def __init__(self, routes, instance):
         """
@@ -16,6 +18,8 @@ class CVRPSolution:
                     where 0 represents the depot
             instance: CVRPInstance object
         """
+
+        CVRPSolution.EVAL_COUNTER += 1
         self.routes = routes
         self.instance = instance
         
