@@ -4,6 +4,7 @@ from src.algorithms.utils import fast_non_dominated_sort
 from src.operators.ox import ox_crossover, mutate_swap
 from src.problem.split import routes_to_tour, tour_to_routes
 from src.problem.solution import CVRPSolution
+from operator import attrgetter
 
 def dominates(a, b):
     # Solution a dominates b if a is no worse in both and at least better in one objective (minimzation of distance and fairness)
@@ -91,4 +92,109 @@ class SPEA2:
             population.append(CVRPSolution(routes, self.instance))
         return population
     
-    def _assign_fitness(self, combined):
+    def _assign_fitness(self, union):
+        n = len(union)
+
+        # Strength S(i): number of solutions it dominates
+        
+        S=np.zeros(n)
+        for i in range(n):
+            for j in range(n):
+                if i != j and dominates(union[i], union[j]):
+                    S[i] += 1
+
+        # Raw fitness R(i): sum of strengths of solutions that dominate it'
+        R = np.zeros(n)
+        for i in range(n):
+            total = 0.0
+            for j in range(n):
+                if i != j and dominates(union[j], union[i]):
+                    total += S[j]
+            R[i] = total
+
+        
+        #Density D(i): normalized space so distance and balanbce are comparable
+        k = max(1, int(np.sqrt(n)))
+        f1s = [s.total_distance for s in union]
+        f2s = [s.route_balance for s in union]
+        f1min, f1max = min(f1s), max(f1s)
+        f2min, f2max = min(f2s), max(f2s)
+
+        normalized = ([
+            [
+                (s.total_distance - f1min) / (f1max - f1min) if f1max > f1min else 0,
+                (s.route_balance - f2min) / (f2max - f2min) if f2max > f2min else 0
+            ]
+            for s in union
+        ])
+
+        D = np.zeros(n)
+        for i in range(n):
+            xi, yi = normalized[i]
+            distances = []
+            for j in range(n):
+                if i == j: continue
+                xj, yj = normalized[j]
+                dx, dy = xi - xj, yi - yj
+                distances.append(np.sqrt(dx * dx + dy * dy))
+            if distances:
+                distances.sort()
+                # Use k-th neighbor if available, else the furtheest
+                sigma_k = distances[k - 1] if len(distances) >= k else distances[-1]
+            else:
+                sigma_k = 0.0
+
+            D[i] = 1 / (sigma_k + 2)  # Avoid division
+
+        # Overall fitness F(i) = R(i) + D(i)
+
+        F = [R[i] + D[i] for i in range(n)]
+        
+        for i, solution in enumerate(union):
+            solution.fitness = F[i]
+
+        return {union[i]: F[i] for i in range(n)}
+    
+    def _environmental_selection(self, union, fitness, size):
+        # Select all non-dominated solutions (Fitness < 1)
+        selected = {solution for solution in union if fitness[solution] < 1.0}
+
+        # Fill with best fitness solutions if needed
+        if len(selected) < size:
+            rest = sorted(solution for solution in union if solution not in selected)
+            rest.sort(key=attrgetter('fitness', 'total_distance', 'route_balance'))
+            need = size - len(selected)
+            selected.extend(rest[:need])
+
+        # If too many, remove the most crowded points
+        while len(selected) > size:
+            f1s = [s.total_distance for s in selected]
+            f2s = [s.route_balance for s in selected]
+            f1min, f1max = min(f1s), max(f1s)
+            f2min, f2max = min(f2s), max(f2s)
+            
+            # Normalize
+
+            normalized = [(
+                (s.total_distance - f1min) / (f1max - f1min) if f1max > f1min else 0,
+                (s.route_balance - f2min) / (f2max - f2min) if f2max > f2min else 0
+            ) for s in selected]
+
+            # Remove the one with smallest distance to any other
+            rm_idx, best_dist = 0, float('inf')
+            m = len(selected)
+            for i in range(m):
+                xi, yi = normalized[i]
+                min_dist = float('inf')
+                for j in range(m):
+                    if i == j: continue
+                    xj, yj = normalized[j]
+                    d = np.sqrt((xi - xj) ** 2 + (yi - yj) ** 2)
+                    if d < min_dist:
+                        min_dist = d
+                if min_dist < best_dist:
+                    best_dist = min_dist
+                    rm_idx = i
+            selected.remove(list(selected)[rm_idx])
+            
+        return list(selected)
