@@ -4,7 +4,11 @@ NSGA-II implementation for CVRP
 import random
 import numpy as np
 from src.algorithms.utils import fast_non_dominated_sort
+from src.operators.ox import ox_crossover, mutate_swap
+from src.problem.split import routes_to_tour, tour_to_routes
 from src.problem.solution import CVRPSolution
+
+
 
 
 class NSGA2:
@@ -18,106 +22,113 @@ class NSGA2:
     """
     
     def __init__(self, instance, pop_size=100, generations=500,
-                 crossover_prob=0.7, mutation_prob=0.2):
+                 crossover_prob=0.7, mutation_prob=0.2, seed=None):
         self.instance = instance
         self.pop_size = pop_size
         self.generations = generations
         self.crossover_prob = crossover_prob
         self.mutation_prob = mutation_prob
+        self.seed = seed
         
         # Get list of customer IDs
         self.customers = list(instance.customers.keys())
         
     def run(self):
+
+        if self.seed is not None:
+            random.seed(self.seed)
+            np.random.seed(self.seed)
+            
         print(f"Initializing population of {self.pop_size}...")
         population = self.initialize_population()
 
+        # Initial non-dominated sorting and crowding distance
         fronts = fast_non_dominated_sort(population)
         for front in fronts:
             self.calculate_crowding_distance(front)
 
         for gen in range(self.generations):
+            # Create offspring population
             offspring = self.create_offspring(population)
+
+            # Combine parent and offsprinmg
             combined = population + offspring
 
+            # Non-dominated sort on combined population
             fronts = fast_non_dominated_sort(combined)
-            for front in fronts:  
+
+            # Recompute crowding distance for each front
+            for front in fronts:
                 self.calculate_crowding_distance(front)
 
-            population = self.select_next_generation(fronts)  
+            # Select next generation
+            population = self.select_next_generation(fronts)
+            assert len(population) == self.pop_size, "Population size mismatch!"
 
-            if (gen + 1) % 50 == 0:
+            # Optional progress
+            if (gen + 1) % 50 == 0 or gen == self.generations - 1:
                 print(f"Generation {gen + 1}/{self.generations} - Front 1 size: {len(fronts[0])}")
 
-        final_fronts = fast_non_dominated_sort(population) 
+        final_fronts = fast_non_dominated_sort(population)
         if final_fronts and len(final_fronts[0]) > 0:
             print(f"\nFinal Pareto front size: {len(final_fronts[0])}")
             return final_fronts[0]
         else:
-            print("\nWarning: No Pareto front found!")
-            return [] #return an empty list instead of None
+            print("\n Warning: No Pareto front found!")
+        return []   #return an empty list instead of None
 
     
     def initialize_population(self):
-        """Create initial random population"""
         population = []
+
         for _ in range(self.pop_size):
-            solution = self.create_random_solution()
-            population.append(solution)
-        return population
-    
-    def create_random_solution(self):
-        """Create a random feasible solution using nearest neighbor heuristic"""
-        unvisited = set(self.customers)
-        routes = []
-        
-        while unvisited:
-            route = [0]  # Start at depot
-            current = 0
-            current_load = 0
-            
+            unvisited = set(self.customers)
+            routes, current, load = [], [0], 0
+
             while unvisited:
-                # Find nearest unvisited customer that fits capacity
-                candidates = []
-                for customer in unvisited:
-                    demand = self.instance.customers[customer]['demand']
-                    if current_load + demand <= self.instance.capacity:
-                        candidates.append(customer)
+                # Any customers that still fits capacity
+                candidates = [
+                    c for c in unvisited
+                    if load + self.instance.customers[c]['demand'] <= self.instance.capacity
+                ]
                 
                 if not candidates:
-                    break
-                
-                # Choose randomly from candidates (for diversity)
+                    # Close current route and start new one
+                    current.append(0)
+                    routes.append(current)
+                    current, load = [0], 0
+                    continue
+
+                # Randomly select next customer
                 next_customer = random.choice(candidates)
-                
-                route.append(next_customer)
-                current_load += self.instance.customers[next_customer]['demand']
+                current.append(next_customer)
+                load += self.instance.customers[next_customer]['demand']
                 unvisited.remove(next_customer)
-                current = next_customer
             
-            route.append(0)  # Return to depot
-            routes.append(route)
-        
-        return CVRPSolution(routes, self.instance)
+            # Close the last route
+            if current[-1] != 0:
+                current.append(0)
+            routes.append(current)
+
+            population.append(CVRPSolution(routes, self.instance))
+        return population
     
     def create_offspring(self, population):
-        """Create offspring through selection, crossover, and mutation"""
         offspring = []
         
         while len(offspring) < self.pop_size:
-            # Tournament selection
             parent1 = self.tournament_selection(population)
             parent2 = self.tournament_selection(population)
-            
-            # Crossover
-            if random.random() < self.crossover_prob:
-                child = self.crossover(parent1, parent2)
-            else:
-                child = parent1  # Keep parent
-            
-            # Mutation
-            if random.random() < self.mutation_prob:
-                child = self.mutate(child)
+
+            parent1_tour = routes_to_tour(parent1.routes)
+            parent2_tour = routes_to_tour(parent2.routes)
+
+            child_tour = ox_crossover(parent1_tour, parent2_tour)
+            child_tour = mutate_swap(child_tour, getattr(self, "mutation_prob", 0.2))
+
+            child_routes = tour_to_routes(child_tour, self.instance)
+
+            child = CVRPSolution(child_routes, self.instance)
             
             offspring.append(child)
         

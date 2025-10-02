@@ -5,11 +5,12 @@ import argparse
 import time
 from src.problem.cvrp_reader import read_cvrp_file
 from src.algorithms.nsga2 import NSGA2
+from src.algorithms.spea2 import SPEA2
 
 
 def main():
     parser = argparse.ArgumentParser(description='Multi-Objective CVRP Solver')
-    parser.add_argument('--algorithm', choices=['nsga2', 'spea'], 
+    parser.add_argument('--algorithm', choices=['nsga2', 'spea2'], 
                        default='nsga2', help='Algorithm to use')
     parser.add_argument('--instance', required=True, 
                        help='Path to CVRP instance file')
@@ -50,9 +51,16 @@ def main():
                 crossover_prob=args.crossover_prob,
                 mutation_prob=args.mutation_prob
             )
-        else:
-            print("SPEA not implemented yet!")
-            return
+        elif args.algorithm.lower() == 'spea2':
+            algorithm = SPEA2(
+                instance,
+                pop_size=args.pop_size,
+                generations=args.generations,
+                crossover_prob=args.crossover_prob,
+                mutation_prob=args.mutation_prob,
+                seed=getattr(args, "seed", None)
+            )
+
         
         pareto_front = algorithm.run()
         
